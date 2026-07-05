@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Creator Camera" />
+<meta name="theme-color" content="#000000" />
+<link rel="apple-touch-icon" href="icon.png" />
+<title>Creator Camera</title>
+<style>
+  :root {
+    --void: #000000;
+    --booth: #14110f;
+    --ash: #241f1b;
+    --bone: #ede8e0;
+    --mute: #8a8077;
+    --ember: #ff5a3c;
+    --live: #ffb347;
+    --hair: rgba(237, 232, 224, 0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--void);
+    color: var(--bone);
+    font-family: ui-sans-serif, -apple-system, system-ui, "Segoe UI", sans-serif;
+    overscroll-behavior: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--booth);
+  }
+
+  /* ---------- Video / preview ---------- */
+  #video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: var(--booth);
+    transition: opacity 0.45s ease;
+  }
+  #video.mirror { transform: scaleX(-1); }
+
+  /* ---------- Framing guides ---------- */
+  #guides {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  #guides.on { opacity: 1; }
+  #guides .v, #guides .h { position: absolute; background: rgba(237,232,224,0.18); }
+  #guides .v { top: 0; bottom: 0; width: 1px; }
+  #guides .h { left: 0; right: 0; height: 1px; }
+  #guides .v.a { left: 33.333%; } #guides .v.b { left: 66.666%; }
+  #guides .h.a { top: 33.333%; } #guides .h.b { top: 66.666%; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: max(14px, env(safe-area-inset-top)) 18px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 5;
+    background: linear-gradient(180deg, rgba(0,0,0,0.45), transparent);
+    transition: opacity 0.3s ease;
+  }
+  .wordmark {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--bone);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .wordmark .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ember);
+    box-shadow: 0 0 10px var(--ember);
+  }
+  .chip-row { display: flex; gap: 8px; }
+  .chip {
+    appearance: none; border: 1px solid var(--hair);
+    background: rgba(20,17,15,0.5);
+    color: var(--bone);
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .chip:hover { border-color: rgba(237,232,224,0.4); }
+  .chip:active { background: var(--ash); }
+  .chip.active { border-color: var(--ember); color: var(--ember); }
+  .chip svg { width: 19px; height: 19px; display: block; }
+
+  /* ---------- Bottom controls (preview) ---------- */
+  .controls {
+    position: absolute;
+    left: 0; right: 0;
+    bottom: max(26px, calc(env(safe-area-inset-bottom) + 18px));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    z-index: 5;
+  }
+  .hint {
+    font-size: 13px;
+    color: var(--mute);
+    letter-spacing: 0.01em;
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.45;
+    padding: 0 24px;
+  }
+  .record-btn {
+    appearance: none; border: none; background: transparent;
+    width: 78px; height: 78px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .record-btn::before {
+    content: ""; position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 3px solid var(--bone);
+    opacity: 0.85;
+  }
+  .record-btn .core {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: var(--ember);
+    box-shadow: 0 0 22px rgba(255,90,60,0.5);
+    transition: transform 0.18s ease, border-radius 0.18s ease;
+  }
+  .record-btn:active .core { transform: scale(0.9); }
+
+  /* ---------- Recording (black) screen ---------- */
+  #recScreen {
+    position: absolute;
+    inset: 0;
+    background: var(--void);
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  #recScreen.show { display: flex; animation: fadeBlack 0.5s ease; }
+  @keyframes fadeBlack { from { opacity: 0; } to { opacity: 1; } }
+
+  .rec-flag {
+    position: absolute;
+    top: max(22px, calc(env(safe-area-inset-top) + 8px));
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--mute);
+  }
+  .rec-flag .pulse {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--ember);
+    box-shadow: 0 0 14px var(--ember);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  .stop-hint {
+    margin-top: 40px;
+    font-size: 13px;
+    color: rgba(138,128,119,0.7);
+    letter-spacing: 0.04em;
+    transition: opacity 0.6s ease;
+  }
+
+  /* ---------- Review ---------- */
+  #review {
+    position: absolute; inset: 0; z-index: 25;
+    background: var(--booth);
+    display: none;
+    flex-direction: column;
+  }
+  #review.show { display: flex; }
+  #playback {
+    flex: 1; width: 100%; min-height: 0;
+    object-fit: contain; background: var(--void);
+  }
+  .review-bar {
+    padding: 18px 18px max(20px, calc(env(safe-area-inset-bottom) + 14px));
+    display: flex; gap: 12px; align-items: center;
+    background: var(--booth);
+    border-top: 1px solid var(--hair);
+  }
+  .review-meta {
+    flex: 1;
+    font-size: 12px; color: var(--mute);
+    letter-spacing: 0.04em;
+  }
+  .review-meta b {
+    display: block; color: var(--bone); font-size: 14px; font-weight: 600;
+    letter-spacing: 0.01em; margin-bottom: 2px;
+  }
+  .btn {
+    appearance: none; cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 600;
+    padding: 12px 18px; border-radius: 999px;
+    letter-spacing: 0.02em;
+    border: 1px solid var(--hair);
+    background: transparent; color: var(--bone);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .btn:hover { border-color: rgba(237,232,224,0.4); }
+  .btn.primary {
+    background: var(--ember); border-color: var(--ember); color: #1a0d09;
+  }
+  .btn.primary:hover { background: #ff6e54; }
+  .btn.saved {
+    border-color: var(--live); color: var(--live); background: transparent;
+  }
+
+  /* ---------- Error / permission ---------- */
+  #fallback {
+    position: absolute; inset: 0; z-index: 30;
+    display: none;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 32px;
+    background: var(--booth);
+  }
+  #fallback.show { display: flex; }
+  #fallback .mark {
+    width: 54px; height: 54px; border-radius: 14px;
+    border: 1px solid var(--hair);
+    display: grid; place-items: center; margin-bottom: 22px;
+    color: var(--ember);
+  }
+  #fallback h1 {
+    font-size: 19px; font-weight: 600; letter-spacing: 0.01em; margin-bottom: 10px;
+  }
+  #fallback p {
+    font-size: 14px; color: var(--mute); line-height: 1.55; max-width: 360px;
+  }
+  #fallback .retry { margin-top: 24px; }
+
+  .fade-out { opacity: 0 !important; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="video" class="mirror" autoplay playsinline muted></video>
+
+  <div id="guides">
+    <div class="v a"></div><div class="v b"></div>
+    <div class="h a"></div><div class="h b"></div>
+  </div>
+
+  <div class="topbar" id="topbar">
+    <div class="wordmark"><span class="dot"></span>Creator Camera</div>
+    <div class="chip-row">
+      <button class="chip" id="guideBtn" title="Framing guides" aria-label="Toggle framing guides">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+      </button>
+      <button class="chip" id="flipBtn" title="Flip camera" aria-label="Flip camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.2"/><path d="M9.5 13.5l-1.2-1.2 1.2-1.2M14.5 12.5l1.2 1.2-1.2 1.2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="controls" id="controls">
+    <div class="hint">Frame yourself, then record. The moment you tap record, the screen goes dark so you can focus on your voice, not your face.</div>
+    <button class="record-btn" id="recordBtn" aria-label="Start recording"><span class="core"></span></button>
+  </div>
+
+  <!-- Black recording screen -->
+  <div id="recScreen">
+    <div class="rec-flag"><span class="pulse"></span>Recording</div>
+    <div class="stop-hint" id="stopHint">Tap anywhere to stop</div>
+  </div>
+
+  <!-- Review -->
+  <div id="review">
+    <video id="playback" controls playsinline></video>
+    <div class="review-bar">
+      <div class="review-meta"><b id="clipName">Your take</b><span id="clipLen">0:00</span></div>
+      <button class="btn" id="retakeBtn">Retake</button>
+      <button class="btn primary" id="saveBtn">Save</button>
+    </div>
+  </div>
+
+  <!-- Fallback / permission -->
+  <div id="fallback">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.2"/></svg>
+    </div>
+    <h1 id="fbTitle">Camera access needed</h1>
+    <p id="fbBody">Creator Camera needs your camera and mic to record. Allow access when prompted.</p>
+    <button class="btn primary retry" id="retryBtn">Try again</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const els = {
+    video: document.getElementById("video"),
+    guides: document.getElementById("guides"),
+    guideBtn: document.getElementById("guideBtn"),
+    flipBtn: document.getElementById("flipBtn"),
+    topbar: document.getElementById("topbar"),
+    controls: document.getElementById("controls"),
+    recordBtn: document.getElementById("recordBtn"),
+    recScreen: document.getElementById("recScreen"),
+    stopHint: document.getElementById("stopHint"),
+    review: document.getElementById("review"),
+    playback: document.getElementById("playback"),
+    clipLen: document.getElementById("clipLen"),
+    retakeBtn: document.getElementById("retakeBtn"),
+    saveBtn: document.getElementById("saveBtn"),
+    fallback: document.getElementById("fallback"),
+    fbTitle: document.getElementById("fbTitle"),
+    fbBody: document.getElementById("fbBody"),
+    retryBtn: document.getElementById("retryBtn"),
+  };
+
+  let stream = null;
+  let recorder = null;
+  let chunks = [];
+  let facing = "user";          // 'user' | 'environment'
+  let clipBlob = null;
+  let clipUrl = null;
+  let mimeType = "";
+  let fileExt = "mp4";
+  let recording = false;
+  let saved = false;
+
+  // clip length tracking
+  let startTime = 0;
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  // iPhones record straight to .mp4 (H.264) — prefer that so clips
+  // play everywhere and save cleanly to Photos. webm covers desktop.
+  function pickMime() {
+    const opts = [
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+      "video/mp4;codecs=avc1,mp4a.40.2",
+      "video/mp4",
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+    ];
+    mimeType = "";
+    for (const t of opts) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) {
+        mimeType = t;
+        break;
+      }
+    }
+  }
+
+  async function startCamera() {
+    // iOS only exposes the camera on secure (https) pages.
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showFallback({ name: "InsecureContext" });
+      return false;
+    }
+    stopStreamTracks();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        audio: true,
+      });
+    } catch (err) {
+      showFallback(err);
+      return false;
+    }
+    // If iOS kills the track (call, camera grabbed by another app), keep the footage.
+    stream.getVideoTracks().forEach(function (t) {
+      t.onended = function () { if (recording) stopRecording(); };
+    });
+    els.video.srcObject = stream;
+    els.video.classList.toggle("mirror", facing === "user");
+    try { await els.video.play(); } catch (e) { /* autoplay is allowed for muted playsinline */ }
+    els.fallback.classList.remove("show");
+    return true;
+  }
+
+  function streamLive() {
+    return !!(stream && stream.getVideoTracks().some(function (t) { return t.readyState === "live"; }));
+  }
+
+  function stopStreamTracks() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+  }
+
+  function showFallback(err) {
+    let title = "Camera access needed";
+    let body = "Creator Camera needs your camera and mic to record. Allow access when prompted.";
+    if (err) {
+      if (err.name === "InsecureContext") {
+        title = "Open this over https";
+        body = "iPhones only unlock the camera on secure (https) pages, so this file has to be hosted (GitHub Pages is free) and opened from that link. Opening it straight from the Files app won't work.";
+      } else if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+        title = "Permission blocked";
+        body = "The camera or mic was blocked. In Safari, tap aA in the address bar, then Website Settings, and set Camera and Microphone to Allow. Then tap Try again.";
+      } else if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
+        title = "No camera found";
+        body = "No usable camera or mic was detected on this device.";
+      } else if (err.name === "NotReadableError") {
+        title = "Camera in use";
+        body = "Another app is using the camera. Close it and tap Try again.";
+      }
+    }
+    els.fbTitle.textContent = title;
+    els.fbBody.textContent = body;
+    els.fallback.classList.add("show");
+  }
+
+  // ---------- Recording ----------
+  // The front camera preview is mirrored on purpose (so it feels like a
+  // normal selfie view), but that means the raw recorded stream comes
+  // out backwards — text and logos flipped. We re-draw each frame onto
+  // a canvas, flipping it back to "true" (as others would see you), and
+  // record that canvas instead of the raw stream. The back camera
+  // doesn't need this correction.
+  let recCanvas = null, recCtx = null, canvasRafId = null, canvasStreamRef = null;
+
+  function startCanvasPipe() {
+    if (!recCanvas) {
+      recCanvas = document.createElement("canvas");
+      recCtx = recCanvas.getContext("2d");
+    }
+    const vw = els.video.videoWidth || 1280;
+    const vh = els.video.videoHeight || 720;
+    recCanvas.width = vw;
+    recCanvas.height = vh;
+
+    function draw() {
+      canvasRafId = requestAnimationFrame(draw);
+      if (facing === "user") {
+        recCtx.save();
+        recCtx.translate(vw, 0);
+        recCtx.scale(-1, 1);
+        recCtx.drawImage(els.video, 0, 0, vw, vh);
+        recCtx.restore();
+      } else {
+        recCtx.drawImage(els.video, 0, 0, vw, vh);
+      }
+    }
+    draw();
+
+    const canvasStream = recCanvas.captureStream(30);
+    canvasStreamRef = canvasStream;
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length) canvasStream.addTrack(audioTracks[0]);
+    return canvasStream;
+  }
+
+  function stopCanvasPipe() {
+    if (canvasRafId) cancelAnimationFrame(canvasRafId);
+    canvasRafId = null;
+    if (canvasStreamRef) {
+      canvasStreamRef.getVideoTracks().forEach(function (t) { t.stop(); });
+      canvasStreamRef = null;
+    }
+  }
+
+  function startRecording() {
+    if (!streamLive() || recording) return;
+    pickMime();
+    chunks = [];
+    const opts = { videoBitsPerSecond: 8000000, audioBitsPerSecond: 128000 };
+    if (mimeType) opts.mimeType = mimeType;
+    const recordStream = startCanvasPipe();
+    try {
+      recorder = new MediaRecorder(recordStream, opts);
+    } catch (e) {
+      try { recorder = new MediaRecorder(recordStream); }
+      catch (e2) { stopCanvasPipe(); showFallback(e2); return; }
+    }
+    recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = finishRecording;
+    recorder.onerror = function () { stopRecording(); };
+    // 1-second chunks: if a call or app switch interrupts the take,
+    // everything up to that moment is still saved.
+    recorder.start(1000);
+    recording = true;
+    saved = false;
+
+    // UI: go dark
+    document.getElementById("app").style.background = "#000";
+    els.recScreen.classList.add("show");
+    els.topbar.classList.add("fade-out");
+    els.controls.classList.add("fade-out");
+    els.video.style.opacity = "0";
+
+    requestWakeLock();
+    startTime = Date.now();
+
+    // fade the stop hint after a few seconds
+    els.stopHint.style.opacity = "1";
+    setTimeout(function () { els.stopHint.style.opacity = "0.2"; }, 3500);
+  }
+
+  function stopRecording() {
+    if (!recording) return;
+    recording = false;
+    releaseWakeLock();
+    stopCanvasPipe();
+    if (recorder && recorder.state !== "inactive") {
+      try { recorder.stop(); return; } catch (e) { /* fall through */ }
+    }
+    finishRecording();
+  }
+
+  function finishRecording() {
+    els.recScreen.classList.remove("show");
+    els.video.style.opacity = "1";
+    document.getElementById("app").style.background = "var(--booth)";
+
+    if (!chunks.length) {
+      // Nothing captured — back to the preview.
+      els.topbar.classList.remove("fade-out");
+      els.controls.classList.remove("fade-out");
+      return;
+    }
+
+    const type = (recorder && recorder.mimeType) || mimeType || "video/mp4";
+    fileExt = type.indexOf("mp4") !== -1 ? "mp4" : "webm";
+    clipBlob = new Blob(chunks, { type: type });
+    chunks = [];
+    if (clipUrl) URL.revokeObjectURL(clipUrl);
+    clipUrl = URL.createObjectURL(clipBlob);
+
+    els.playback.src = clipUrl;
+    els.clipLen.textContent = fmt((Date.now() - startTime) / 1000);
+    resetSaveBtn();
+    els.review.classList.add("show");
+  }
+
+  function resetSaveBtn() {
+    els.saveBtn.textContent = "Save";
+    els.saveBtn.classList.add("primary");
+    els.saveBtn.classList.remove("saved");
+  }
+
+  function markSaved() {
+    saved = true;
+    els.saveBtn.textContent = "Saved \u2713";
+    els.saveBtn.classList.remove("primary");
+    els.saveBtn.classList.add("saved");
+  }
+
+  function retake() {
+    if (!saved && clipBlob && !confirm("Discard this take?")) return;
+    els.review.classList.remove("show");
+    els.topbar.classList.remove("fade-out");
+    els.controls.classList.remove("fade-out");
+    els.playback.pause();
+    els.playback.removeAttribute("src");
+    els.playback.load();
+    if (!streamLive()) startCamera();
+  }
+
+  // Save opens the iOS share sheet so the clip can go straight to
+  // Photos (Save Video), AirDrop, or anywhere else. Falls back to a
+  // plain download on browsers without file sharing.
+  async function save() {
+    if (!clipBlob) return;
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const name = "creator-camera-" + stamp + "." + fileExt;
+    const file = new File([clipBlob], name, { type: clipBlob.type });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        markSaved();
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // sheet closed, no harm
+        downloadClip(name);
+        markSaved();
+      }
+    } else {
+      downloadClip(name);
+      markSaved();
+    }
+  }
+
+  function downloadClip(name) {
+    const a = document.createElement("a");
+    a.href = clipUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // ---------- Wake lock (keep screen awake while dark) ----------
+  let wakeLock = null;
+  async function requestWakeLock() {
+    try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); }
+    catch (e) {}
+  }
+  function releaseWakeLock() {
+    try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {}
+  }
+
+  // ---------- Lifecycle: don't lose takes to calls / app switches ----------
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      if (recording) stopRecording(); // finalizes the clip instead of losing it
+    } else if (!streamLive() && !els.fallback.classList.contains("show")) {
+      startCamera(); // iOS suspends the camera in the background; wake it back up
+    }
+  });
+  window.addEventListener("pagehide", function () {
+    if (recording) stopRecording();
+  });
+
+  // ---------- Events ----------
+  els.recordBtn.addEventListener("click", startRecording);
+  els.recScreen.addEventListener("click", stopRecording);
+  els.retakeBtn.addEventListener("click", retake);
+  els.saveBtn.addEventListener("click", save);
+  els.retryBtn.addEventListener("click", startCamera);
+  els.guideBtn.addEventListener("click", function () {
+    const on = els.guides.classList.toggle("on");
+    els.guideBtn.classList.toggle("active", on);
+  });
+  els.flipBtn.addEventListener("click", async function () {
+    if (recording) return;
+    facing = facing === "user" ? "environment" : "user";
+    await startCamera();
+  });
+
+  // keyboard: space/enter to start, Esc to cancel or stop
+  document.addEventListener("keydown", function (e) {
+    const reviewing = els.review.classList.contains("show");
+    if ((e.code === "Space" || e.code === "Enter") && !recording && !reviewing) {
+      e.preventDefault();
+      startRecording();
+    } else if (e.code === "Escape") {
+      if (recording) stopRecording();
+    }
+  });
+
+  startCamera();
+})();
+</script>
+</body>
+</html>
